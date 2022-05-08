@@ -3,7 +3,7 @@ from tkinter import ttk, Button
 from datetime import datetime, timedelta
 from functools import partial 
 import uuid 
-
+from collections import defaultdict
 tasks = []
 
 import enum
@@ -23,6 +23,8 @@ class App:
         self.tasks = {}
         self.task_status_button_map = {}
         self.task_time_label_map = {}
+
+        self.task_ui_components_map = defaultdict(lambda : defaultdict(int))
 
     def get_task_len(self):
         """Return length of active tasks"""
@@ -56,7 +58,12 @@ class App:
         time_spent_label.configure(text=task['time_spent'].time())
 
     def link_task_status_button_to_task(self, task_id, b):
-        self.task_status_button_map[task_id] = b
+        # self.task_status_button_map[task_id] = b
+        self.task_ui_components_map[task_id]['status_button'] = b
+
+
+    def link_task_delete_button_to_task(self, task_id, b):
+        self.task_ui_components_map[task_id]['delete_button'] = b
 
     def save_task(self, task):
         self.tasks[task['task_id']] = task
@@ -89,18 +96,44 @@ class App:
         )
         return b
 
+    def create_task_delete_button(self, frame):
+        b = Button(frame, text='⮾', 
+            height=1,
+            width=2, 
+            bg='red',
+            fg='white'
+            
+        )
+        return b
+
+
     def create_task_time_spent_label(self, frame):
         l = ttk.Label(frame, text='time spend', background='beige')
         return l
 
+    def get_linked_ui_components(self, task_id):
+        return self.task_ui_components_map[task_id].values()
+
+    def remove_task_from_ui(self,task_id):
+        ui_components = self.get_linked_ui_components(task_id)
+        for w in ui_components:
+            w.destroy()
+
     def add_task_status_button_action(self, task_id):
-        b = self.task_status_button_map[task_id]
-        print(self.task_status_button_map,"===>")
+        # b = self.task_status_button_map[task_id]
+        b = self.task_ui_components_map[task_id]['status_button']
         b.configure(command=partial(
             self.toggle_task_status,
             task_id,  
             b)
         )
+
+    def add_task_delete_button_action(self, task_id):
+        b = self.task_ui_components_map[task_id]['delete_button']
+        b.configure(command=partial(
+            self.remove_task_from_ui,
+            task_id)
+        )  
 
     def create_task_label(self, frame, text):
  
@@ -121,6 +154,17 @@ class App:
         self.tasks_frame =  ttk.Frame(self.root, padding=10)
         self.tasks_frame.grid(row=3, column=1) 
 
+    def link_ui_component_to_task(self, task_id, widgets):
+        """There are multiple components rendered in ui
+        which are linked to a task.
+        This function creates a map of 
+        task_id -> {ui components}
+        
+        """
+        for k,v in widgets.items():
+            self.task_ui_components_map[task_id][k] = v
+        
+
     def create_task(self):
         """
         Main method used to create ui widgets 
@@ -139,23 +183,35 @@ class App:
             self.tasks_frame,
         )
 
+        task_delete_button = self.create_task_delete_button(
+            self.tasks_frame
+        )
+
         time_spent_label = self.create_task_time_spent_label(
             self.tasks_frame
         )
 
-        
-        self.link_task_status_button_to_task(
-            task['task_id'],
-            task_status_button
-        )
+
+        self.link_ui_component_to_task(
+            task['task_id'] , {
+                'status_button': task_status_button,
+                'delete_button': task_delete_button,
+                'task_label': task_label,
+                'time_spent_label': time_spent_label
+            })
 
         self.task_time_label_map[task['task_id']] = time_spent_label 
+
         self.add_task_status_button_action(
             task['task_id']
-            )
+        )
 
+        self.add_task_delete_button_action(
+            task['task_id']
+        )
+    
         self.do_placement(
-            [task_label, task_status_button ,time_spent_label]
+            [time_spent_label, task_label, task_status_button ,task_delete_button, ]
         )
 
         self.save_task(task)
